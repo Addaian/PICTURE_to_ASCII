@@ -221,6 +221,9 @@ function loadFile(file) {
   };
   img.onerror = () => {
     URL.revokeObjectURL(url);
+    // Drop the previous image so sliders and exports don't silently act on it.
+    image = null;
+    lastText = "";
     showMessage(`Couldn't read "${file.name}" — this browser may not support that image format.`);
   };
   img.src = url;

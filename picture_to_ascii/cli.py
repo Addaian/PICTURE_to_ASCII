@@ -7,6 +7,7 @@ import math
 import os
 import shutil
 import sys
+from collections.abc import Callable
 from io import BytesIO
 from pathlib import Path
 
@@ -23,8 +24,10 @@ def hex_color(value: str) -> RGB:
         raise argparse.ArgumentTypeError(f"invalid hex color: {value!r}") from None
 
 
-def ranged(lo: float, hi: float, cast=float, lo_exclusive: bool = False):
-    def parse(value: str):
+def ranged(
+    lo: float, hi: float, cast: Callable[[str], float] = float, lo_exclusive: bool = False
+) -> Callable[[str], float]:
+    def parse(value: str) -> float:
         try:
             f = cast(value)
         except ValueError:
@@ -136,7 +139,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         s = Settings(
             cols=args.cols,
-            charset=args.chars if args.chars else CHARSETS[args.charset],
+            charset=args.chars if args.chars is not None else CHARSETS[args.charset],
             variance=args.variance,
             invert=args.invert,
             brightness=args.brightness / 100,
@@ -149,9 +152,9 @@ def main(argv: list[str] | None = None) -> int:
             grad_end=grad[1],
             grad_dir=args.gradient_dir,
         )
+        art = convert(image, s)
     except ValueError as e:
         return fail(str(e))
-    art = convert(image, s)
 
     if args.output:
         out = Path(args.output)
@@ -168,7 +171,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
             else:
                 out.write_text(art.text + "\n", encoding="utf-8")
-        except OSError as e:
+        except (OSError, ValueError) as e:
             return fail(f"cannot write {out}: {e}")
         print(f"wrote {out} ({art.cols}x{art.rows})", file=sys.stderr)
         return 0

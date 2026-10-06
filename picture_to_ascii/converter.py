@@ -7,6 +7,7 @@ import numbers
 import re
 from dataclasses import dataclass, field, fields
 from pathlib import Path
+from typing import Any
 
 from PIL import Image, ImageOps
 
@@ -19,6 +20,8 @@ CHARSETS = {
 }
 
 GRADIENT_DIRS = ("horizontal", "vertical", "diagonal", "radial", "brightness")
+
+MAX_CELLS = 10_000_000
 
 COLOR_MODES = ("none", "solid", "original", "gradient")
 
@@ -49,6 +52,10 @@ class Settings:
         self.cols = int(self.cols)
         if not self.charset:
             raise ValueError("charset must not be empty")
+        for name, lo, hi in (("brightness", -1, 1), ("contrast", -1, 1), ("variance", 0, 1)):
+            value = getattr(self, name)
+            if not lo <= value <= hi:
+                raise ValueError(f"{name} must be between {lo} and {hi}, got {value!r}")
         if not (math.isfinite(self.gamma) and self.gamma > 0):
             raise ValueError(f"gamma must be > 0, got {self.gamma!r}")
         if not (math.isfinite(self.char_aspect) and self.char_aspect > 0):
@@ -90,15 +97,17 @@ class AsciiArt:
 
         return to_ansi(self, self.settings, parse_color(bg) if bg is not None else None)
 
-    def to_image(self, **png_options) -> Image.Image:
+    def to_image(self, **png_options: Any) -> Image.Image:
         """Render to a PIL image. Options: font_size, line_height, bg, font_path, padding."""
         from .render import render_image
 
-        if "bg" in png_options:
+        if png_options.get("bg") is not None:
             png_options["bg"] = parse_color(png_options["bg"])
+        else:
+            png_options.pop("bg", None)
         return render_image(self, self.settings, **png_options)
 
-    def save(self, path: str | Path, **png_options) -> None:
+    def save(self, path: str | Path, **png_options: Any) -> None:
         """Save as PNG (if path ends in .png) or plain text."""
         path = Path(path)
         if path.suffix.lower() == ".png":
@@ -121,7 +130,7 @@ def parse_color(value: RGB | str) -> RGB:
     rgb = tuple(int(c) for c in value)
     if len(rgb) != 3 or not all(0 <= c <= 255 for c in rgb):
         raise ValueError(f"RGB color must be three values 0-255, got {value!r}")
-    return rgb  # type: ignore[return-value]
+    return rgb
 
 
 def round_half_up(v: float) -> int:
@@ -194,6 +203,8 @@ def convert(image: Image.Image, s: Settings) -> AsciiArt:
     img = to_rgba(image)
     cols = s.cols
     rows = max(1, round_half_up(img.height / img.width * cols * s.char_aspect))
+    if cols * rows > MAX_CELLS:
+        raise ValueError(f"output too large: {cols}x{rows} characters (limit {MAX_CELLS:,} cells)")
     px = img.resize((cols, rows), Image.Resampling.BOX).load()
 
     chars = s.charset if len(s.charset) >= 2 else " @"
@@ -217,7 +228,7 @@ def convert(image: Image.Image, s: Settings) -> AsciiArt:
     return art
 
 
-def image_to_ascii(image: str | Path | Image.Image, **options) -> AsciiArt:
+def image_to_ascii(image: str | Path | Image.Image, **options: Any) -> AsciiArt:
     """Convert an image (path or PIL Image) to ASCII art.
 
     Keyword options are the fields of :class:`Settings`. ``charset`` may be a
@@ -234,7 +245,7 @@ def image_to_ascii(image: str | Path | Image.Image, **options) -> AsciiArt:
         raise TypeError(f"unknown option(s): {', '.join(sorted(unknown))}")
 
     charset = options.get("charset")
-    if charset in CHARSETS:
+    if isinstance(charset, str) and charset in CHARSETS:
         options["charset"] = CHARSETS[charset]
 
     if not isinstance(image, Image.Image):

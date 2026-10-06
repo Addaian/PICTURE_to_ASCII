@@ -25,7 +25,7 @@ PICTURE_to_ASCII samples an image into a grid of character cells and picks a cha
 
 Output goes to the terminal (24-bit color), a `.txt` file, or a rendered `.png`.
 
-There are three ways to use it — all with the same settings and conversion logic:
+There are three ways to use it — all with the same settings and conversion logic (the web app measures your browser's font to size rows, so its row count can differ slightly from the CLI's text output):
 
 - the **`pic2ascii` command-line tool**
 - the **`picture_to_ascii` Python library**
@@ -172,7 +172,9 @@ The result is an `AsciiArt` object:
 | `art.to_image(**options)` | `PIL.Image` — options: `font_size`, `line_height`, `bg`, `font_path`, `padding` |
 | `art.save(path, **options)` | Writes `.png` (same options) or text |
 
-Preset character sets are in `picture_to_ascii.CHARSETS`. For lower-level control, build a `Settings` object and call `convert(pil_image, settings)`.
+Preset character sets are in `picture_to_ascii.CHARSETS`. For lower-level control, build a `Settings` object and call `convert(pil_image, settings)` — note that `Settings` takes the characters themselves, so pass `charset=CHARSETS["blocks"]` rather than `"blocks"`.
+
+Invalid settings (e.g. `gamma=0`, `contrast=2`, an unknown `color_mode`, a malformed color) raise `ValueError`.
 
 ---
 

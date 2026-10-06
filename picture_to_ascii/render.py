@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from PIL import Image, ImageDraw, ImageFont
 
 from .converter import RGB, AsciiArt, Settings, cell_color
+
+MAX_PNG_PIXELS = 200_000_000
 
 MONO_FONTS = [
     "/System/Library/Fonts/Menlo.ttc",
@@ -64,6 +67,10 @@ def render_image(
     width = int(art.cols * cell_w + padding * 2)
     height = int(art.rows * cell_h + padding * 2)
 
+    if width * height > MAX_PNG_PIXELS:
+        raise ValueError(
+            f"PNG would be {width}x{height} px (limit {MAX_PNG_PIXELS:,}); use fewer columns or a smaller font"
+        )
     img = Image.new("RGB", (width, height), bg)
     draw = ImageDraw.Draw(img)
     default = s.fg if s.color_mode == "none" else None
@@ -80,5 +87,5 @@ def render_image(
     return img
 
 
-def to_png(art: AsciiArt, s: Settings, path: str | Path, **options) -> None:
+def to_png(art: AsciiArt, s: Settings, path: str | Path, **options: Any) -> None:
     render_image(art, s, **options).save(path)
