@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
+from pathlib import Path
 
 from PIL import Image
 
@@ -48,11 +49,51 @@ class Cell:
 class AsciiArt:
     cols: int
     rows: int
+    settings: Settings = field(default_factory=Settings)
     grid: list[list[Cell]] = field(default_factory=list)
 
     @property
     def text(self) -> str:
+        """Plain ASCII text, rows joined by newlines."""
         return "\n".join("".join(c.ch for c in row) for row in self.grid)
+
+    def __str__(self) -> str:
+        return self.text
+
+    def to_ansi(self, bg: RGB | str | None = None) -> str:
+        """Text with 24-bit ANSI color codes for printing to a terminal."""
+        from .render import to_ansi
+
+        return to_ansi(self, self.settings, parse_color(bg) if bg is not None else None)
+
+    def to_image(self, **png_options) -> Image.Image:
+        """Render to a PIL image. Options: font_size, line_height, bg, font_path, padding."""
+        from .render import render_image
+
+        if "bg" in png_options:
+            png_options["bg"] = parse_color(png_options["bg"])
+        return render_image(self, self.settings, **png_options)
+
+    def save(self, path: str | Path, **png_options) -> None:
+        """Save as PNG (if path ends in .png) or plain text."""
+        path = Path(path)
+        if path.suffix.lower() == ".png":
+            self.to_image(**png_options).save(path)
+        else:
+            path.write_text(self.text + "\n", encoding="utf-8")
+
+
+def parse_color(value: RGB | str) -> RGB:
+    """Accept an (r, g, b) tuple or a hex string like '#ff8800' / 'f80'."""
+    if isinstance(value, str):
+        v = value.lstrip("#")
+        if len(v) == 3:
+            v = "".join(c * 2 for c in v)
+        if len(v) != 6:
+            raise ValueError(f"invalid hex color: {value!r}")
+        n = int(v, 16)
+        return ((n >> 16) & 255, (n >> 8) & 255, n & 255)
+    return tuple(int(c) for c in value)  # type: ignore[return-value]
 
 
 def clamp01(v: float) -> float:
@@ -111,7 +152,7 @@ def convert(image: Image.Image, s: Settings) -> AsciiArt:
     last = len(chars) - 1
     spread = s.variance * max(1.0, last * 0.5)
 
-    art = AsciiArt(cols, rows)
+    art = AsciiArt(cols, rows, s)
     for y in range(rows):
         row = []
         for x in range(cols):
@@ -126,3 +167,36 @@ def convert(image: Image.Image, s: Settings) -> AsciiArt:
             row.append(Cell(chars[idx], b, (r, g, bl)))
         art.grid.append(row)
     return art
+
+
+_COLOR_FIELDS = ("fg", "grad_start", "grad_end")
+
+
+def image_to_ascii(image: str | Path | Image.Image, **options) -> AsciiArt:
+    """Convert an image (path or PIL Image) to ASCII art.
+
+    Keyword options are the fields of :class:`Settings`. ``charset`` may be a
+    preset name from :data:`CHARSETS` or a custom string; colors may be hex
+    strings or RGB tuples.
+
+    >>> art = image_to_ascii("photo.jpg", cols=80, charset="blocks", color_mode="original")
+    >>> print(art.to_ansi())
+    >>> art.save("art.png", font_size=14)
+    """
+    valid = {f.name for f in fields(Settings)}
+    unknown = set(options) - valid
+    if unknown:
+        raise TypeError(f"unknown option(s): {', '.join(sorted(unknown))}")
+
+    charset = options.get("charset")
+    if charset in CHARSETS:
+        options["charset"] = CHARSETS[charset]
+    for name in _COLOR_FIELDS:
+        if name in options:
+            options[name] = parse_color(options[name])
+
+    if not isinstance(image, Image.Image):
+        with Image.open(image) as img:
+            img.load()
+            image = img.copy()
+    return convert(image, Settings(**options))

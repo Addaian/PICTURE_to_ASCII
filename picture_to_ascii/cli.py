@@ -10,21 +10,15 @@ from pathlib import Path
 
 from PIL import Image
 
-from .converter import CHARSETS, GRADIENT_DIRS, RGB, Settings, convert
+from .converter import CHARSETS, GRADIENT_DIRS, RGB, Settings, convert, parse_color
 from .render import load_font, to_ansi, to_png
 
 
 def hex_color(value: str) -> RGB:
-    v = value.lstrip("#")
-    if len(v) == 3:
-        v = "".join(c * 2 for c in v)
     try:
-        n = int(v, 16)
-        if len(v) != 6:
-            raise ValueError
+        return parse_color(value)
     except ValueError:
         raise argparse.ArgumentTypeError(f"invalid hex color: {value!r}")
-    return ((n >> 16) & 255, (n >> 8) & 255, n & 255)
 
 
 def ranged(lo: float, hi: float):
@@ -135,7 +129,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.output:
         out = Path(args.output)
         if is_png:
-            to_png(art, s, out, args.font_size, args.line_height, args.bg or (13, 13, 15), args.font)
+            to_png(
+                art, s, out,
+                font_size=args.font_size, line_height=args.line_height,
+                bg=args.bg or (13, 13, 15), font_path=args.font,
+            )
         else:
             out.write_text(art.text + "\n", encoding="utf-8")
         print(f"wrote {out} ({art.cols}x{art.rows})", file=sys.stderr)

@@ -1,17 +1,30 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "picture-to-ascii"
 version = "0.1.0"
-description = "Convert images to ASCII art from the command line"
+description = "Convert images to ASCII art — CLI tool and Python library"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = ["Pillow>=10.1"]
+license = "MIT"
+keywords = ["ascii", "ascii-art", "image", "cli", "terminal"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Environment :: Console",
+    "Topic :: Multimedia :: Graphics",
+]
 
 [project.scripts]
 pic2ascii = "picture_to_ascii.cli:main"
 
+[project.urls]
+Homepage = "https://github.com/Addaian/PICTURE_to_ASCII"
+
 [tool.setuptools]
 packages = ["picture_to_ascii"]
+
+[tool.setuptools.package-data]
+picture_to_ascii = ["py.typed"]

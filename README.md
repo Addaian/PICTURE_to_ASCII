@@ -25,7 +25,11 @@ PICTURE_to_ASCII samples an image into a grid of character cells and picks a cha
 
 Output goes to the terminal (24-bit color), a `.txt` file, or a rendered `.png`.
 
-There are two ways to use it: the **`pic2ascii` command-line tool** and a **web app** with live sliders. Both use the same settings and conversion logic.
+There are three ways to use it — all with the same settings and conversion logic:
+
+- the **`pic2ascii` command-line tool**
+- the **`picture_to_ascii` Python library**
+- a **web app** with live sliders
 
 ---
 
@@ -36,13 +40,17 @@ There are two ways to use it: the **`pic2ascii` command-line tool** and a **web 
 Requires Python 3.10+.
 
 ```sh
-git clone https://github.com/Addaian/PICTURE_to_ASCII.git
-cd PICTURE_to_ASCII
+# as a command-line tool (isolated environment)
+uv tool install git+https://github.com/Addaian/PICTURE_to_ASCII
+# or: pipx install git+https://github.com/Addaian/PICTURE_to_ASCII
 
-uv tool install .     # or: pip install .
+# as a library in your project / virtualenv (also installs the command)
+pip install git+https://github.com/Addaian/PICTURE_to_ASCII
 ```
 
-This adds the `pic2ascii` command. To run it without installing (needs [Pillow](https://pypi.org/project/pillow/)):
+From a local clone: `pip install .` (or `pip install -e .` for development).
+
+To run it without installing (needs [Pillow](https://pypi.org/project/pillow/)):
 
 ```sh
 python3 -m picture_to_ascii photo.jpg
@@ -115,6 +123,59 @@ Run `pic2ascii --help` for the full list.
 
 ---
 
+## Python library
+
+Install with `pip install git+https://github.com/Addaian/PICTURE_to_ASCII`, then:
+
+```python
+from picture_to_ascii import image_to_ascii
+
+art = image_to_ascii("photo.jpg", cols=80)
+
+print(art)                 # plain ASCII text
+print(art.to_ansi())       # with 24-bit terminal colors
+art.save("art.txt")        # plain text file
+art.save("art.png")        # rendered image
+```
+
+`image_to_ascii` accepts a file path or a `PIL.Image`, and takes the same settings as the CLI as keyword arguments:
+
+```python
+art = image_to_ascii(
+    "photo.jpg",
+    cols=120,
+    charset="blocks",          # preset name, or your own string like " .oO@"
+    variance=0.3,
+    invert=False,
+    brightness=0.1,            # -1 to 1
+    contrast=0.2,              # -1 to 1
+    gamma=1.0,
+    char_aspect=0.5,           # character cell width ÷ height
+    color_mode="gradient",     # "none", "solid", "original", "gradient"
+    grad_start="#ff3c78",      # hex string or (r, g, b)
+    grad_end=(60, 200, 255),
+    grad_dir="radial",         # horizontal, vertical, diagonal, radial, brightness
+)
+
+img = art.to_image(font_size=14, line_height=1.0, bg="#0d0d0f")  # PIL.Image
+img.show()
+```
+
+The result is an `AsciiArt` object:
+
+| Attribute / method | Returns |
+|---|---|
+| `art.text` / `str(art)` | Plain text |
+| `art.cols`, `art.rows` | Grid size |
+| `art.grid[y][x]` | `Cell` with `.ch` (character), `.b` (brightness 0–1), `.rgb` (source color) |
+| `art.to_ansi(bg=None)` | Text with ANSI color codes |
+| `art.to_image(**options)` | `PIL.Image` — options: `font_size`, `line_height`, `bg`, `font_path`, `padding` |
+| `art.save(path, **options)` | Writes `.png` (same options) or text |
+
+Preset character sets are in `picture_to_ascii.CHARSETS`. For lower-level control, build a `Settings` object and call `convert(pil_image, settings)`.
+
+---
+
 ## Web app
 
 A browser version with live preview — no install needed.
@@ -139,9 +200,14 @@ picture_to_ascii/
   converter.py   image → character grid (tone, character set, variance, colors)
   render.py      terminal (ANSI), plain text and PNG output
   cli.py         pic2ascii command
+  __init__.py    public API (image_to_ascii, AsciiArt, Settings, …)
 web/
   index.html     browser UI
   style.css
   app.js
 pyproject.toml
 ```
+
+## License
+
+MIT — see [LICENSE](LICENSE).

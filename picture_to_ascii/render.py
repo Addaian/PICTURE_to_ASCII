@@ -45,16 +45,15 @@ def load_font(size: int, path: str | None = None) -> ImageFont.FreeTypeFont | Im
     return ImageFont.load_default(size=size)
 
 
-def to_png(
+def render_image(
     art: AsciiArt,
     s: Settings,
-    path: str | Path,
     font_size: int = 12,
     line_height: float = 1.0,
     bg: RGB = (13, 13, 15),
     font_path: str | None = None,
     padding: int = 16,
-) -> None:
+) -> Image.Image:
     font = load_font(font_size, font_path)
     cell_w = font.getlength("M")
     cell_h = font_size * line_height
@@ -74,4 +73,8 @@ def to_png(
             color = cell_color(art, x, y, s) or default
             draw.text((padding + x * cell_w, cy), ch, font=font, fill=color, anchor="lm")
 
-    img.save(path)
+    return img
+
+
+def to_png(art: AsciiArt, s: Settings, path: str | Path, **options) -> None:
+    render_image(art, s, **options).save(path)
