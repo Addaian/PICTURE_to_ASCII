@@ -5,6 +5,8 @@ const $ = (id) => document.getElementById(id);
 const FONT_FAMILY = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
 const PADDING = 16;
 const MAX_CANVAS_SIDE = 16000;
+const MAX_CANVAS_AREA = 16_000_000; // stay under iOS Safari's ~16.7M px limit
+const MAX_ROWS = 2000;
 
 const els = {
   file: $("file"),
@@ -30,8 +32,9 @@ let lastText = "";
 
 function readSettings() {
   const preset = els.charsetPreset.value;
-  let charset = preset === "custom" ? els.customChars.value : preset;
-  if (charset.length < 2) charset = " @";
+  // Split by code point so emoji and other astral characters stay intact.
+  let charset = [...(preset === "custom" ? els.customChars.value : preset)];
+  if (charset.length < 2) charset = [" ", "@"];
 
   return {
     cols: +$("cols").value,
@@ -104,7 +107,7 @@ function convert() {
   const cellH = s.fontSize * s.lineHeight;
 
   const cols = s.cols;
-  const rows = Math.max(1, Math.round((image.height / image.width) * cols * (cellW / cellH)));
+  const rows = Math.min(MAX_ROWS, Math.max(1, Math.round((image.height / image.width) * cols * (cellW / cellH))));
 
   // Downsample the image to one pixel per character cell.
   const sampler = els.sampler;
@@ -150,7 +153,12 @@ function render(grid, cols, rows, cellW, cellH, font, s) {
   const canvas = els.output;
   const cssW = Math.ceil(cols * cellW + PADDING * 2);
   const cssH = Math.ceil(rows * cellH + PADDING * 2);
-  const dpr = Math.min(window.devicePixelRatio || 1, MAX_CANVAS_SIDE / Math.max(cssW, cssH), 2);
+  const dpr = Math.min(
+    window.devicePixelRatio || 1,
+    2,
+    MAX_CANVAS_SIDE / Math.max(cssW, cssH),
+    Math.sqrt(MAX_CANVAS_AREA / (cssW * cssH))
+  );
 
   canvas.width = Math.floor(cssW * dpr);
   canvas.height = Math.floor(cssH * dpr);
@@ -191,14 +199,29 @@ function render(grid, cols, rows, cellW, cellH, font, s) {
 
 // ---------- image loading ----------
 
+function showMessage(text) {
+  els.placeholder.textContent = text;
+  els.placeholder.hidden = false;
+  els.output.hidden = true;
+}
+
 function loadFile(file) {
-  if (!file || !file.type.startsWith("image/")) return;
+  if (!file) return;
+  // Some files arrive with an empty MIME type; let the decoder decide in that case.
+  if (file.type && !file.type.startsWith("image/")) {
+    showMessage(`"${file.name}" is not an image.`);
+    return;
+  }
   const url = URL.createObjectURL(file);
   const img = new Image();
   img.onload = () => {
     URL.revokeObjectURL(url);
     image = img;
     convert();
+  };
+  img.onerror = () => {
+    URL.revokeObjectURL(url);
+    showMessage(`Couldn't read "${file.name}" — this browser may not support that image format.`);
   };
   img.src = url;
 }
@@ -261,11 +284,28 @@ function download(name, href) {
   a.click();
 }
 
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // navigator.clipboard is unavailable outside secure contexts (e.g. http on a LAN IP).
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return ok;
+  }
+}
+
 $("copyBtn").addEventListener("click", async () => {
   if (!lastText) return;
-  await navigator.clipboard.writeText(lastText);
   const btn = $("copyBtn");
-  btn.textContent = "Copied!";
+  btn.textContent = (await copyText(lastText)) ? "Copied!" : "Copy failed";
   setTimeout(() => (btn.textContent = "Copy text"), 1200);
 });
 

@@ -39,8 +39,12 @@ def to_ansi(art: AsciiArt, s: Settings, bg: RGB | None = None) -> str:
 
 
 def load_font(size: int, path: str | None = None) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    for candidate in [path, *MONO_FONTS]:
-        if candidate and Path(candidate).exists():
+    if path is not None:
+        if not Path(path).is_file():
+            raise FileNotFoundError(f"font not found: {path}")
+        return ImageFont.truetype(path, size)
+    for candidate in MONO_FONTS:
+        if Path(candidate).exists():
             return ImageFont.truetype(candidate, size)
     return ImageFont.load_default(size=size)
 

@@ -28,3 +28,10 @@ packages = ["picture_to_ascii"]
 
 [tool.setuptools.package-data]
 picture_to_ascii = ["py.typed"]
+
+[tool.ruff]
+line-length = 120
+include = ["picture_to_ascii/**/*.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I", "UP", "SIM", "RUF"]

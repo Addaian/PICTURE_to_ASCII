@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import math
+import numbers
+import re
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageOps
 
 CHARSETS = {
     "standard": " .:-=+*#%@",
@@ -18,7 +20,11 @@ CHARSETS = {
 
 GRADIENT_DIRS = ("horizontal", "vertical", "diagonal", "radial", "brightness")
 
+COLOR_MODES = ("none", "solid", "original", "gradient")
+
 RGB = tuple[int, int, int]
+
+_HEX_RE = re.compile(r"#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})")
 
 
 @dataclass
@@ -36,6 +42,24 @@ class Settings:
     grad_start: RGB = (255, 60, 120)
     grad_end: RGB = (60, 200, 255)
     grad_dir: str = "horizontal"
+
+    def __post_init__(self) -> None:
+        if isinstance(self.cols, bool) or not isinstance(self.cols, numbers.Integral) or self.cols < 1:
+            raise ValueError(f"cols must be a positive integer, got {self.cols!r}")
+        self.cols = int(self.cols)
+        if not self.charset:
+            raise ValueError("charset must not be empty")
+        if not (math.isfinite(self.gamma) and self.gamma > 0):
+            raise ValueError(f"gamma must be > 0, got {self.gamma!r}")
+        if not (math.isfinite(self.char_aspect) and self.char_aspect > 0):
+            raise ValueError(f"char_aspect must be > 0, got {self.char_aspect!r}")
+        if self.color_mode not in COLOR_MODES:
+            raise ValueError(f"color_mode must be one of {COLOR_MODES}, got {self.color_mode!r}")
+        if self.grad_dir not in GRADIENT_DIRS:
+            raise ValueError(f"grad_dir must be one of {GRADIENT_DIRS}, got {self.grad_dir!r}")
+        self.fg = parse_color(self.fg)
+        self.grad_start = parse_color(self.grad_start)
+        self.grad_end = parse_color(self.grad_end)
 
 
 @dataclass
@@ -86,14 +110,23 @@ class AsciiArt:
 def parse_color(value: RGB | str) -> RGB:
     """Accept an (r, g, b) tuple or a hex string like '#ff8800' / 'f80'."""
     if isinstance(value, str):
-        v = value.lstrip("#")
+        m = _HEX_RE.fullmatch(value)
+        if not m:
+            raise ValueError(f"invalid hex color: {value!r}")
+        v = m.group(1)
         if len(v) == 3:
             v = "".join(c * 2 for c in v)
-        if len(v) != 6:
-            raise ValueError(f"invalid hex color: {value!r}")
         n = int(v, 16)
         return ((n >> 16) & 255, (n >> 8) & 255, n & 255)
-    return tuple(int(c) for c in value)  # type: ignore[return-value]
+    rgb = tuple(int(c) for c in value)
+    if len(rgb) != 3 or not all(0 <= c <= 255 for c in rgb):
+        raise ValueError(f"RGB color must be three values 0-255, got {value!r}")
+    return rgb  # type: ignore[return-value]
+
+
+def round_half_up(v: float) -> int:
+    """Match JavaScript's Math.round so the CLI and web app produce identical output."""
+    return math.floor(v + 0.5)
 
 
 def clamp01(v: float) -> float:
@@ -142,10 +175,25 @@ def cell_color(art: AsciiArt, x: int, y: int, s: Settings) -> RGB | None:
     return None
 
 
+def to_rgba(image: Image.Image) -> Image.Image:
+    """Apply EXIF orientation and normalise any Pillow mode (incl. 16-bit / float) to 8-bit RGBA."""
+    img = ImageOps.exif_transpose(image) or image
+    if img.mode.startswith("I;16"):
+        img = img.convert("I").point(lambda v: v / 257).convert("L")
+    elif img.mode in ("I", "F"):
+        lo, hi = img.convert("F").getextrema()
+        if hi > lo:
+            scale = 255 / (hi - lo)
+            img = img.convert("F").point(lambda v: (v - lo) * scale).convert("L")
+        else:  # flat image: no range to stretch, treat any positive value as white
+            img = Image.new("L", img.size, 255 if lo > 0 else 0)
+    return img.convert("RGBA")
+
+
 def convert(image: Image.Image, s: Settings) -> AsciiArt:
-    img = image.convert("RGBA")
-    cols = max(1, s.cols)
-    rows = max(1, round(img.height / img.width * cols * s.char_aspect))
+    img = to_rgba(image)
+    cols = s.cols
+    rows = max(1, round_half_up(img.height / img.width * cols * s.char_aspect))
     px = img.resize((cols, rows), Image.Resampling.BOX).load()
 
     chars = s.charset if len(s.charset) >= 2 else " @"
@@ -163,13 +211,10 @@ def convert(image: Image.Image, s: Settings) -> AsciiArt:
             idx = b * last
             if spread > 0:
                 idx += cell_noise(x, y) * spread
-            idx = round(min(last, max(0, idx)))
+            idx = round_half_up(min(last, max(0, idx)))
             row.append(Cell(chars[idx], b, (r, g, bl)))
         art.grid.append(row)
     return art
-
-
-_COLOR_FIELDS = ("fg", "grad_start", "grad_end")
 
 
 def image_to_ascii(image: str | Path | Image.Image, **options) -> AsciiArt:
@@ -191,9 +236,6 @@ def image_to_ascii(image: str | Path | Image.Image, **options) -> AsciiArt:
     charset = options.get("charset")
     if charset in CHARSETS:
         options["charset"] = CHARSETS[charset]
-    for name in _COLOR_FIELDS:
-        if name in options:
-            options[name] = parse_color(options[name])
 
     if not isinstance(image, Image.Image):
         with Image.open(image) as img:
