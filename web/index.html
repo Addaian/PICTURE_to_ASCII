@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Picture to ASCII</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>PICTURE<span>_to_</span>ASCII</h1>
+  </header>
+
+  <main>
+    <aside id="controls">
+      <section>
+        <h2>Image</h2>
+        <label id="dropzone" for="file">
+          <input type="file" id="file" accept="image/*" hidden />
+          <span>Drop an image here or click to upload</span>
+        </label>
+      </section>
+
+      <section>
+        <h2>Size</h2>
+        <label>Columns <output id="colsOut"></output>
+          <input type="range" id="cols" min="20" max="300" value="120" />
+        </label>
+        <label>Character size (px) <output id="fontSizeOut"></output>
+          <input type="range" id="fontSize" min="4" max="32" value="10" />
+        </label>
+        <label>Line height <output id="lineHeightOut"></output>
+          <input type="range" id="lineHeight" min="0.6" max="1.6" step="0.05" value="1" />
+        </label>
+      </section>
+
+      <section>
+        <h2>Characters</h2>
+        <label>Character set
+          <select id="charsetPreset">
+            <option value=" .:-=+*#%@">Standard</option>
+            <option value=" .'`^&quot;,:;Il!i><~+_-?][}{1)(|\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$">Detailed (70)</option>
+            <option value=" ░▒▓█">Blocks</option>
+            <option value=" 01">Binary</option>
+            <option value=" ·•●">Dots</option>
+            <option value="custom">Custom…</option>
+          </select>
+        </label>
+        <label id="customWrap" hidden>Custom (order: sparse → dense)
+          <input type="text" id="customChars" value=" .oO@" />
+        </label>
+        <label>Character variance <output id="varianceOut"></output>
+          <input type="range" id="variance" min="0" max="1" step="0.01" value="0" />
+        </label>
+        <label class="check"><input type="checkbox" id="invert" /> Invert brightness</label>
+      </section>
+
+      <section>
+        <h2>Tone</h2>
+        <label>Brightness <output id="brightnessOut"></output>
+          <input type="range" id="brightness" min="-100" max="100" value="0" />
+        </label>
+        <label>Contrast <output id="contrastOut"></output>
+          <input type="range" id="contrast" min="-100" max="100" value="0" />
+        </label>
+        <label>Gamma <output id="gammaOut"></output>
+          <input type="range" id="gamma" min="0.2" max="3" step="0.05" value="1" />
+        </label>
+      </section>
+
+      <section>
+        <h2>Color</h2>
+        <label>Color mode
+          <select id="colorMode">
+            <option value="solid">Solid</option>
+            <option value="original">Original image colors</option>
+            <option value="gradient">Gradient</option>
+          </select>
+        </label>
+        <div id="solidWrap" class="row">
+          <label>Text <input type="color" id="fgColor" value="#e8e8e8" /></label>
+        </div>
+        <div id="gradientWrap" hidden>
+          <div class="row">
+            <label>Start <input type="color" id="gradStart" value="#ff3c78" /></label>
+            <label>End <input type="color" id="gradEnd" value="#3cc8ff" /></label>
+          </div>
+          <label>Direction
+            <select id="gradDir">
+              <option value="horizontal">Horizontal</option>
+              <option value="vertical">Vertical</option>
+              <option value="diagonal">Diagonal</option>
+              <option value="radial">Radial</option>
+              <option value="brightness">By brightness</option>
+            </select>
+          </label>
+        </div>
+        <div class="row">
+          <label>Background <input type="color" id="bgColor" value="#0d0d0f" /></label>
+        </div>
+      </section>
+
+      <section class="actions">
+        <button id="copyBtn">Copy text</button>
+        <button id="txtBtn">Download .txt</button>
+        <button id="pngBtn">Download .png</button>
+      </section>
+    </aside>
+
+    <section id="stage">
+      <p id="placeholder">Upload an image to begin.</p>
+      <canvas id="output" hidden></canvas>
+    </section>
+  </main>
+
+  <canvas id="sampler" hidden></canvas>
+  <script src="app.js"></script>
+</body>
+</html>

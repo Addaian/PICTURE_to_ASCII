@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "picture-to-ascii"
+version = "0.1.0"
+description = "Convert images to ASCII art from the command line"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["Pillow>=10.1"]
+
+[project.scripts]
+pic2ascii = "picture_to_ascii.cli:main"
+
+[tool.setuptools]
+packages = ["picture_to_ascii"]
